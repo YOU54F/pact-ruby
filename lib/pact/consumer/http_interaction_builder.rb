@@ -78,9 +78,7 @@ module Pact
           end
         end
 
-        InteractionContents.basic(headers).each_pair do |key, value_item|
-          PactFfi.with_header_v2(pact_interaction, interaction_part, key.to_s, 0, format_value(value_item))
-        end
+        add_headers(interaction_part, headers)
 
         if body
           PactFfi.with_body(pact_interaction, interaction_part, "application/json", format_value(InteractionContents.basic(body).value))
@@ -101,9 +99,7 @@ module Pact
         interaction_part = PactFfi::FfiInteractionPart["INTERACTION_PART_RESPONSE"]
         PactFfi.response_status(pact_interaction, status)
 
-        InteractionContents.basic(headers).each_pair do |key, value_item|
-          PactFfi.with_header_v2(pact_interaction, interaction_part, key.to_s, 0, format_value(value_item))
-        end
+        add_headers(interaction_part, headers)
 
         if body
           PactFfi.with_body(pact_interaction, interaction_part, "application/json", format_value(InteractionContents.basic(body).value))
@@ -128,17 +124,20 @@ module Pact
         yield(mock_server)
 
       ensure
-        if mock_server.matched?
-          mock_server.write_pacts!(pact_config.pact_dir)
-        else
-          msg = mismatches_error_msg(mock_server)
-          raise InteractionMismatchesError.new(msg)
+        begin
+          if mock_server.matched?
+            mock_server.write_pacts!(pact_config.pact_dir)
+          else
+            msg = mismatches_error_msg(mock_server)
+            raise InteractionMismatchesError.new(msg)
+          end
+        ensure
+          @used = true
+          mock_server&.cleanup
+          # Reset the pact handle to allow for a new interaction to be built
+          # without previous interactions being included, also after a mismatch
+          @pact_config.reset_pact
         end
-        @used = true
-        mock_server&.cleanup
-        # Reset the pact handle to allow for a new interaction to be built
-        # without previous interactions being included
-        @pact_config.reset_pact
       end
 
       private
@@ -160,6 +159,18 @@ module Pact
         PactFfi.with_pact_metadata(handle, "pact-ruby", "pact-ffi", PactFfi.version)
 
         handle
+      end
+
+      # Registers each header with pactffi_with_header_v2. An Array value is a repeated header
+      # (RFC 9110 §5.3): each element, a literal or a matcher, is registered at its own index,
+      # so a matcher can be set per value. An empty Array is passed through unchanged.
+      def add_headers(interaction_part, headers)
+        InteractionContents.basic(headers).each_pair do |key, value_item|
+          values = value_item.is_a?(Array) && value_item.any? ? value_item : [value_item]
+          values.each_with_index do |value, index|
+            PactFfi.with_header_v2(pact_interaction, interaction_part, key.to_s, index, format_value(value))
+          end
+        end
       end
 
       def format_value(obj)
