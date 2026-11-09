@@ -26,3 +26,7 @@ if RUBY_VERSION >= '3.4'
   gem 'csv'
   gem 'mutex_m'
 end
+
+group :compatibility_suite do
+  gem 'cucumber', '~> 9.2'
+end
