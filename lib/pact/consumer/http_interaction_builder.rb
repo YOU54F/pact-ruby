@@ -83,24 +83,7 @@ module Pact
         end
 
         if body
-          contents = InteractionContents.basic(body)
-
-          PactFfi.with_body(
-            pact_interaction,
-            interaction_part,
-            "application/json",
-            format_value(contents.value)
-          )
-
-          if contents.matching_rules.any?
-            PactFfi.with_matching_rules(
-              pact_interaction,
-              interaction_part,
-              JSON.dump(
-                "body" => contents.matching_rules
-              )
-            )
-          end
+          PactFfi.with_body(pact_interaction, interaction_part, "application/json", format_value(InteractionContents.basic(body).value))
         end
 
         self
@@ -123,24 +106,7 @@ module Pact
         end
 
         if body
-          contents = InteractionContents.basic(body)
-
-          PactFfi.with_body(
-            pact_interaction,
-            interaction_part,
-            "application/json",
-            format_value(contents.value)
-          )
-
-          if contents.matching_rules.any?
-            PactFfi.with_matching_rules(
-              pact_interaction,
-              interaction_part,
-              JSON.dump(
-                "body" => contents.matching_rules
-              )
-            )
-          end
+          PactFfi.with_body(pact_interaction, interaction_part, "application/json", format_value(InteractionContents.basic(body).value))
         end
 
         self

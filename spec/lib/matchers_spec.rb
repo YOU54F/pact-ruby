@@ -58,7 +58,7 @@ RSpec.describe Pact::Matchers do
     let(:boolean_matcher) { test_class.match_any_boolean(true) }
     let(:null_matcher) { test_class.match_null }
 
-    it 'creates an OR combination of the provided matchers' do
+    it 'creates an AND combination of the provided matchers' do
       expect(matcher).to have_attributes(
         combine: :and,
         template: true,
@@ -86,6 +86,92 @@ RSpec.describe Pact::Matchers do
         ArgumentError,
         'All values must be Pact matchers'
       )
+    end
+  end
+
+  context 'with combined matchers serialized to integration JSON' do
+    it 'serializes match_or with each matcher (without its value) and the sample as the value' do
+      matcher = test_class.match_or(test_class.match_type_of('Fred'), test_class.match_null, sample: 'Fred')
+
+      expect(JSON.parse(matcher.as_basic.to_json)).to eq(
+        'pact:matcher:type' => [{ 'pact:matcher:type' => 'type' }, { 'pact:matcher:type' => 'null' }],
+        'pact:matcher:combine' => 'OR',
+        'value' => 'Fred'
+      )
+    end
+
+    it 'serializes match_and with AND' do
+      matcher = test_class.match_and(test_class.match_regex(/\d+/, '12'), test_class.match_include('1'), sample: '12')
+
+      expect(JSON.parse(matcher.as_basic.to_json)).to eq(
+        'pact:matcher:type' => [
+          { 'pact:matcher:type' => 'regex', 'regex' => '(?-mix:\d+)' },
+          { 'pact:matcher:type' => 'include' }
+        ],
+        'pact:matcher:combine' => 'AND',
+        'value' => '12'
+      )
+    end
+
+    it 'keeps matcher attributes on each alternative' do
+      expect(JSON.parse(test_class.match_datetime_or_nil('yyyy-MM-dd', '2020-05-21').as_basic.to_json)).to eq(
+        'pact:matcher:type' => [
+          { 'pact:matcher:type' => 'datetime', 'format' => 'yyyy-MM-dd' },
+          { 'pact:matcher:type' => 'null' }
+        ],
+        'pact:matcher:combine' => 'OR',
+        'value' => '2020-05-21'
+      )
+    end
+
+    it 'serializes nested matchers inside an object sample (null-or-object)' do
+      matcher = test_class.match_or(
+        test_class.match_type_of({}), test_class.match_null,
+        sample: { street: 'Main St', number: test_class.match_any_integer(42) }
+      )
+
+      expect(JSON.parse(matcher.as_basic.to_json)).to eq(
+        'pact:matcher:type' => [{ 'pact:matcher:type' => 'type' }, { 'pact:matcher:type' => 'null' }],
+        'pact:matcher:combine' => 'OR',
+        'value' => { 'street' => 'Main St', 'number' => { 'pact:matcher:type' => 'integer', 'value' => 42 } }
+      )
+    end
+
+    it 'emits a null value when the sample is nil' do
+      matcher = test_class.match_or(test_class.match_null, test_class.match_any_integer(1), sample: nil)
+
+      expect(matcher.as_basic).to include('value' => nil)
+    end
+
+    {
+      match_any_string_or_nil: [['any'], { 'pact:matcher:type' => 'regex', 'regex' => '(?-mix:.*)' }, 'any'],
+      match_any_integer_or_nil: [[], { 'pact:matcher:type' => 'integer' }, 10],
+      match_any_decimal_or_nil: [[], { 'pact:matcher:type' => 'decimal' }, 10.0],
+      match_any_number_or_nil: [[], { 'pact:matcher:type' => 'number' }, 10.0],
+      match_any_boolean_or_nil: [[], { 'pact:matcher:type' => 'boolean' }, true],
+      match_date_or_nil: [%w[yyyy-MM-dd 2020-05-21], { 'pact:matcher:type' => 'date', 'format' => 'yyyy-MM-dd' },
+                          '2020-05-21'],
+      match_time_or_nil: [%w[HH:mm 16:44], { 'pact:matcher:type' => 'time', 'format' => 'HH:mm' }, '16:44']
+    }.each do |helper, (args, first_rule, sample)|
+      it "#{helper} serializes to <matcher> OR null" do
+        expect(JSON.parse(test_class.public_send(helper, *args).as_basic.to_json)).to eq(
+          'pact:matcher:type' => [first_rule, { 'pact:matcher:type' => 'null' }],
+          'pact:matcher:combine' => 'OR',
+          'value' => sample
+        )
+      end
+    end
+
+    it 'rejects a combined matcher as an alternative' do
+      inner = test_class.match_any_string_or_nil('x')
+
+      expect { test_class.match_or(inner, test_class.match_any_integer(1), sample: 'x') }
+        .to raise_error(ArgumentError, 'All values must be Pact matchers')
+    end
+
+    it 'is not supported in plugin contents' do
+      expect { test_class.match_any_string_or_nil('x').as_plugin }
+        .to raise_error(Pact::Matchers::Base::MatcherInitializationError, /not supported in plugin contents/)
     end
   end
 

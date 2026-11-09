@@ -32,7 +32,7 @@ module Pact
     def match_or(*matchers, sample:)
       Combined.new(matchers, combine: :or, template: sample)
     end
-    
+
     def match_and(*matchers, sample:)
       Combined.new(matchers, combine: :and, template: sample)
     end

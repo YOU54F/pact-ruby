@@ -46,4 +46,26 @@ RSpec.describe Pact::Consumer::InteractionContents do
       expect(described_class.basic({ some_array: [42] }).to_json).to eq('{"some_array":[42]}')
     end
   end
+
+  context 'with combined (OR) matchers' do
+    it 'serializes them inline as integration JSON at any depth' do
+      contents = { pet: { name: match_any_string_or_nil('Rex'), tags: [match_any_integer_or_nil(1)] } }
+      or_rule = lambda do |rule, value|
+        { 'pact:matcher:type' => [rule, { 'pact:matcher:type' => 'null' }], 'pact:matcher:combine' => 'OR',
+          'value' => value }
+      end
+
+      expect(JSON.parse(described_class.basic(contents).to_json)).to eq(
+        'pet' => {
+          'name' => or_rule.call({ 'pact:matcher:type' => 'regex', 'regex' => '(?-mix:.*)' }, 'Rex'),
+          'tags' => [or_rule.call({ 'pact:matcher:type' => 'integer' }, 1)]
+        }
+      )
+    end
+
+    it 'serializes a top-level combined matcher (e.g. a header value)' do
+      expect(described_class.basic({ 'X-Id' => match_or(match_regex(/\d+/, '1'), match_null, sample: '1') })['X-Id'])
+        .to include('pact:matcher:combine' => 'OR', 'value' => '1')
+    end
+  end
 end
