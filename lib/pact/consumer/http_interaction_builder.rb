@@ -83,24 +83,7 @@ module Pact
         end
 
         if body
-          contents = InteractionContents.basic(body)
-
-          PactFfi.with_body(
-            pact_interaction,
-            interaction_part,
-            "application/json",
-            format_value(contents.value)
-          )
-
-          if contents.matching_rules.any?
-            PactFfi.with_matching_rules(
-              pact_interaction,
-              interaction_part,
-              JSON.dump(
-                "body" => contents.matching_rules
-              )
-            )
-          end
+          PactFfi.with_body(pact_interaction, interaction_part, "application/json", format_value(InteractionContents.basic(body).value))
         end
 
         self
@@ -123,24 +106,7 @@ module Pact
         end
 
         if body
-          contents = InteractionContents.basic(body)
-
-          PactFfi.with_body(
-            pact_interaction,
-            interaction_part,
-            "application/json",
-            format_value(contents.value)
-          )
-
-          if contents.matching_rules.any?
-            PactFfi.with_matching_rules(
-              pact_interaction,
-              interaction_part,
-              JSON.dump(
-                "body" => contents.matching_rules
-              )
-            )
-          end
+          PactFfi.with_body(pact_interaction, interaction_part, "application/json", format_value(InteractionContents.basic(body).value))
         end
 
         self
@@ -160,17 +126,21 @@ module Pact
         yield(mock_server)
 
       ensure
-        if mock_server.matched?
-          mock_server.write_pacts!(pact_config.pact_dir)
-        else
-          msg = mismatches_error_msg(mock_server)
-          raise InteractionMismatchesError.new(msg)
+        begin
+          if mock_server&.matched?
+            mock_server.write_pacts!(pact_config.pact_dir)
+          elsif mock_server
+            msg = mismatches_error_msg(mock_server)
+            raise InteractionMismatchesError.new(msg)
+          end
+        ensure
+          # Always release the mock server port, even when there are mismatches
+          @used = true
+          mock_server&.cleanup
+          # Reset the pact handle to allow for a new interaction to be built
+          # without previous interactions being included
+          @pact_config.reset_pact
         end
-        @used = true
-        mock_server&.cleanup
-        # Reset the pact handle to allow for a new interaction to be built
-        # without previous interactions being included
-        @pact_config.reset_pact
       end
 
       private
