@@ -1,0 +1,44 @@
+name: Compatibility suite (core)
+
+# Runs the core V1-V4 pact-compatibility-suite features (everything except
+# V4 plugins) through compatibility-suite/run-core.sh.
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      suite-ref:
+        description: Ref of pact-foundation/pact-compatibility-suite to run
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PACT_DO_NOT_TRACK: 'true'
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Checkout compatibility suite
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: pact-foundation/pact-compatibility-suite
+          ref: ${{ inputs.suite-ref || 'main' }}
+          path: pact-compatibility-suite
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - name: Run core features
+        run: compatibility-suite/run-core.sh
+        env:
+          PACT_COMPAT_SUITE: ${{ github.workspace }}/pact-compatibility-suite
