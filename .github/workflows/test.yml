@@ -23,6 +23,19 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby_version }}
           bundler-cache: true
+      # TEMP: load libpact_ffi 0.5.13-or.1 (YOU54F/pact-reference fork prerelease),
+      # fetched by the YOU54F/pact-ruby-ffi PR branch's download script, through
+      # pact-ffi's DEBUG_TARGET override (revert before merge)
+      - name: Use pact_ffi 0.5.13-or.1 from YOU54F/pact-ruby-ffi
+        shell: bash
+        run: |
+          git clone --depth 1 --branch feat/or-matcher https://github.com/YOU54F/pact-ruby-ffi.git ../pact-ruby-ffi
+          cd ../pact-ruby-ffi
+          ruby script/download_libs.rb
+          echo "DEBUG_TARGET=$(ruby -r ./lib/pact/detect_os -e 'print File.expand_path(DetectOS.get_bin_path)')" >> "$GITHUB_ENV"
+      - name: Check loaded pact_ffi version
+        shell: bash
+        run: bundle exec ruby -e 'require "pact/ffi"; v = PactFfi.version; puts "DEBUG_TARGET=#{ENV["DEBUG_TARGET"]} pact_ffi=#{v}"; abort "expected pact_ffi 0.5.13-or.1" unless v == "0.5.13-or.1"'
       - uses: pact-foundation/pact-cli@main
       - run: pact plugin install --yes https://github.com/mefellows/pact-matt-plugin/releases/tag/v0.1.1
       - name: Test Pact-Ruby Specs
@@ -52,6 +65,19 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby_version }}
           bundler-cache: true
+      # TEMP: load libpact_ffi 0.5.13-or.1 (YOU54F/pact-reference fork prerelease),
+      # fetched by the YOU54F/pact-ruby-ffi PR branch's download script, through
+      # pact-ffi's DEBUG_TARGET override (revert before merge)
+      - name: Use pact_ffi 0.5.13-or.1 from YOU54F/pact-ruby-ffi
+        shell: bash
+        run: |
+          git clone --depth 1 --branch feat/or-matcher https://github.com/YOU54F/pact-ruby-ffi.git ../pact-ruby-ffi
+          cd ../pact-ruby-ffi
+          ruby script/download_libs.rb
+          echo "DEBUG_TARGET=$(ruby -r ./lib/pact/detect_os -e 'print File.expand_path(DetectOS.get_bin_path)')" >> "$GITHUB_ENV"
+      - name: Check loaded pact_ffi version
+        shell: bash
+        run: bundle exec ruby -e 'require "pact/ffi"; v = PactFfi.version; puts "DEBUG_TARGET=#{ENV["DEBUG_TARGET"]} pact_ffi=#{v}"; abort "expected pact_ffi 0.5.13-or.1" unless v == "0.5.13-or.1"'
       - uses: pact-foundation/pact-cli@main
       - run: pact plugin install --yes https://github.com/mefellows/pact-matt-plugin/releases/tag/v0.1.1
       - run: "bundle exec appraisal install"
