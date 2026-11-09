@@ -209,6 +209,53 @@ For details of the implementation, see [matchers.rb](../lib/pact/matchers.rb)
 
 See the different uses of the matchers in [matchers_spec.rb](../spec/pact/matchers_spec.rb)
 
+#### Combining matchers (OR / AND)
+
+> Requires a pact_ffi version with `pact:matcher:combine` support ([pact-foundation/pact-reference#601](https://github.com/pact-foundation/pact-reference/pull/601)): pact_ffi TODO(version).
+
+- `match_or(*matchers, sample:)` - the value must match at least one of the matchers
+- `match_and(*matchers, sample:)` - the value must match all of the matchers
+- `match_null` - match a JSON `null` (mostly useful inside `match_or`)
+- `*_or_nil` helpers - shorthand for `match_or(<matcher>, match_null, sample: sample)`:
+  `match_any_string_or_nil`, `match_any_integer_or_nil`, `match_any_decimal_or_nil`, `match_any_number_or_nil`,
+  `match_any_boolean_or_nil`, `match_any_uuid_or_nil`, `match_regex_or_nil`, `match_datetime_or_nil`,
+  `match_iso8601_or_nil`, `match_date_or_nil`, `match_time_or_nil`
+
+Combined matchers can be used in request/response bodies, headers and query parameters:
+
+```ruby
+.with_request(
+  method: :post,
+  path: '/pets',
+  query: { limit: match_or(match_regex(/^\d+$/, '10'), match_regex(/^all$/, 'all'), sample: '10') },
+  headers: { 'X-Request-Id' => match_or(match_regex(/^\d+$/, '123'), match_uuid, sample: '123') },
+  body: {
+    name: match_any_string_or_nil('Rex'),
+    # null, or an object whose `age` is an integer
+    owner: match_or(
+      match_type_of({}), match_null,
+      sample: { name: 'Bob', age: match_any_integer(30) }
+    )
+  }
+)
+```
+
+Each matcher is sent to pact_ffi without its own example; `sample:` is the one example value used for the path.
+Matchers nested inside an object `sample` (like `age` above) still apply to its children whenever the value is not
+`null`. Put every alternative in the one `match_or`/`match_and` call; combined matchers cannot be nested inside each
+other, and are not supported in plugin (`matching(...)`) contents.
+
+The Pact file gets a rule list combined with `OR`/`AND`, which Pact specification V3 and V4 support:
+
+```json
+"$.owner": { "combine": "OR", "matchers": [{ "match": "type" }, { "match": "null" }] }
+```
+
+**Caveat:** only the `sample` is exercised in the consumer test. In a response, the mock server always returns the
+sample, so your consumer code is never run against the other alternatives (e.g. `null`); the provider verification
+checks that the real response matches one of them. Add a separate interaction (e.g. with a `null` sample) if your
+consumer must be tested against each case.
+
 ### Generators
 
 Generators are helper methods that allow you to specify dynamic values in your contract tests. These values are generated at runtime, making your contracts more flexible and robust. Below are the available generator methods:
